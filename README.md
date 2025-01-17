@@ -36,20 +36,83 @@ To start using this module, follow these steps:
    
    Inside your project directory, create a `main.tf` file and include the modules you want to use. For example:
    ```hcl
+   provider "aws" {
+     region = "us-east-1"
+   }
+   
    module "vpc" {
-     source = "./modules/vpc"
-     # Add required variables for VPC module
+     source = "./module/vpc"
+     cidr_vpc = "10.0.0.0/16"
+     vpc_name = "my-vpc"
+     cidr_private_sub = "10.0.2.0/24"
+     cidr_public_subnet = "10.0.1.0/24"
+     availability_zone_private_sub = "us-east-1b"
+     availability_zone_public_subnet = "us-east-1a"
+     private_sub_name = "my-private-subnet"
+     pub_sub_name = "my-pub-sub-name"
    }
-
+   #Customise this vpc module according to you
+   
    module "security_groups" {
-     source = "./modules/security_groups"
-     # Add required variables for Security Groups
+     source = "./module/security_groups"
+     vpc_id = module.vpc.vpc_id
+     security_group_name = "my-sec-group"
+     security_group_name_database = "secu-group-for-db"
    }
-
+   #Customise this security group module according to you
+   
+   module "ec2_instances" {
+     source = "./module/ec2_instances"
+     ami_id = "ami-0c55b159cbfafe1f0"
+     my_instance_type = "t2.micro"
+     subnet_id = module.vpc.public_subnet_id
+     security_group_name = module.security_groups.web_security_group_id
+     key_name = "my-key"
+   }
+   #Customise this ec2_instance module according to you
+   
+   module "asg" {
+     source = "./module/asg"
+     ami_id = "ami-0c55b159cbfafe1f0"
+     my_instance_type = "t2.micro"
+     key_name = "my-key"
+     subnet_ids = [module.vpc.public_subnet_id]
+     security_group_name = "my-sec-group"
+     asg_min = 1
+     asg_max = 5
+     user_data = <<-EOF
+       #!/bin/bash
+       echo "admin:YourSecurePassword123" | chpasswd
+       sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+       sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+       systemctl restart sshd
+     EOF
+   }
+   #Customise this asg module and user_data according to you
+   
+   module "db" {
+     source = "./module/db"
+     subnet_ids = module.vpc.private_subnet_id
+     pub_acc_instance = false
+     engine_db = "mysql"
+     engine_db_version = "8.0"
+     database_instance_class = "db.t2.micro"
+     security_group_ids = module.security_groups.web_security_group_id
+     db_name_rds = "my-db"
+     memory_db_instance = 20
+     mylti_az_value = true
+     username_for_db = "root"
+     password_for_db = "mypassword12"
+   }
+   #Customise this db module according to you
+   
    module "lb" {
-     source = "./modules/lb"
-     # Add required variables for Load Balancer
+     source = "./module/lb"
+     vpc_id = module.vpc.vpc_id
+     subnet_ids = [module.vpc.public_subnet_id]
+     security_group_name = module.security_groups.web_security_group_id
    }
+   #Customise this lb module according to you
    ```
 
 3. **Initialize Terraform**:
@@ -74,39 +137,55 @@ To start using this module, follow these steps:
 ### Create a VPC with Public and Private Subnets
 ```hcl
 module "vpc" {
-  source        = "./modules/vpc"
-  cidr_block    = "10.0.0.0/16"
-  public_subnet = {
-    cidr_block = "10.0.1.0/24"
-    az         = "us-east-1a"
-  }
-  private_subnet = {
-    cidr_block = "10.0.2.0/24"
-    az         = "us-east-1b"
-  }
+  source = "./module/vpc"
+  cidr_vpc = "10.0.0.0/16"
+  vpc_name = "my-vpc"
+  cidr_private_sub = "10.0.2.0/24"
+  cidr_public_subnet = "10.0.1.0/24"
+  availability_zone_private_sub = "us-east-1b"
+  availability_zone_public_subnet = "us-east-1a"
+  private_sub_name = "my-private-subnet"
+  pub_sub_name = "my-pub-sub-name"
 }
 ```
 
 ### Deploy an EC2 Instance
 ```hcl
-module "ec2" {
-  source        = "./modules/ec2_instances"
-  instance_type = "t2.micro"
-  ami_id        = "ami-12345678"
-  key_name      = "my-key-pair"
-  vpc_id        = module.vpc.vpc_id
-  subnet_id     = module.vpc.public_subnet_id
+module "ec2_instances" {
+  source = "./module/ec2_instances"
+  ami_id = "ami-0c55b159cbfafe1f0"
+  my_instance_type = "t2.micro"
+  subnet_id = module.vpc.public_subnet_id
+  security_group_name = module.security_groups.web_security_group_id
+  key_name = "my-key"
 }
 ```
 
 ### Add a Load Balancer
 ```hcl
 module "lb" {
-  source                  = "./modules/lb"
-  vpc_id                  = module.vpc.vpc_id
-  public_subnet_ids       = module.vpc.public_subnet_ids
-  target_group_name       = "app-target-group"
-  load_balancer_name      = "my-load-balancer"
+  source = "./module/lb"
+  vpc_id = module.vpc.vpc_id
+  subnet_ids = [module.vpc.public_subnet_id]
+  security_group_name = module.security_groups.web_security_group_id
+}
+```
+
+### Add a RDS db
+```
+module "db" {
+  source = "./module/db"
+  subnet_ids = module.vpc.private_subnet_id
+  pub_acc_instance = false
+  engine_db = "mysql"
+  engine_db_version = "8.0"
+  database_instance_class = "db.t2.micro"
+  security_group_ids = module.security_groups.web_security_group_id
+  db_name_rds = "my-db"
+  memory_db_instance = 20
+  mylti_az_value = true
+  username_for_db = "root"
+  password_for_db = "mypassword12"
 }
 ```
 
