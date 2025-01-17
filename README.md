@@ -28,8 +28,8 @@ To start using this module, follow these steps:
 
 1. **Clone the Repository**:
    ```bash
-   git clone <repository-url>
-   cd <repository-folder>
+   git clone https://github.com/rohankamble103/terraform-aws-high-level-architechture.git
+   cd terraform-aws-high-level-architechture
    ```
 
 2. **Create a Main Configuration File**:
